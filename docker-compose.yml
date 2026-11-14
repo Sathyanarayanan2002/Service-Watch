@@ -1,0 +1,14 @@
+services:
+  servicewatch:
+    build: .
+    image: servicewatch:1.0
+    container_name: servicewatch-app
+    ports:
+      - "5000:5000"
+    environment:
+      MYSQL_HOST: host.docker.internal
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: servicewatch
+      MYSQL_PORT: "3306"
+    restart: unless-stopped

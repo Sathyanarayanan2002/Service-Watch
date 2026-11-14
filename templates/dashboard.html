@@ -1,0 +1,232 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ServiceWatch Dashboard</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 25px;
+        }
+
+        h1 {
+            color: #24344d;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 220px;
+            box-shadow: 0 2px 8px #ddd;
+        }
+
+        .card h3 {
+            color: #555;
+        }
+
+        .card p {
+            font-size: 25px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 30px;
+            background: white;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #24344d;
+            color: white;
+        }
+    </style>
+</head>
+
+<script>
+async function loadDashboard() {
+    try {
+        const response = await fetch('/api/metrics');
+        const data = await response.json();
+
+        const serviceIds = data.services.map(item => item.service_id);
+        const serviceMap = {};
+        data.services.forEach(item => {
+             serviceMap[item.service_id] = item;
+            });
+
+        const p95Map = {};
+        data.p95_response_time.forEach(item => {
+            p95Map[item.service_id] = Number(item.p95_response_time_ms);
+        });
+
+        const mttrMap = {};
+        data.mttr.forEach(item => {
+            mttrMap[item.service_id] = Number(item.mttr_minutes);
+        });
+
+        const totalServices = serviceIds.length;
+
+        const activeUptime = data.services
+        .map(service => data.uptime.find(
+            item => item.service_id === service.service_id
+            ))
+            .filter(Boolean);
+       
+        const avgUptime = activeUptime.length
+        ? activeUptime.reduce((sum, item) =>
+        sum + Number(item.uptime_percentage), 0
+        ) / activeUptime.length
+        : 0;
+
+        const p95Values = Object.values(p95Map);
+        const avgP95 = p95Values.length
+            ? p95Values.reduce((sum, value) => sum + value, 0) / p95Values.length
+            : 0;
+
+        const mttrValues = Object.values(mttrMap);
+        const avgMttr = mttrValues.length
+            ? mttrValues.reduce((sum, value) => sum + value, 0) / mttrValues.length
+            : 0;
+
+        document.getElementById('total-services').textContent = totalServices;
+        document.getElementById('average-uptime').textContent = avgUptime.toFixed(2) + '%';
+        document.getElementById('average-p95').textContent = avgP95.toFixed(2) + ' ms';
+        document.getElementById('average-mttr').textContent = avgMttr.toFixed(2) + ' min';
+
+        const incidents = data.incident_summary || {};
+
+        document.getElementById('total-incidents').textContent =
+        Number(incidents.total_incidents || 0);
+        
+        document.getElementById('open-incidents').textContent =
+        Number(incidents.open_incidents || 0);
+        
+        document.getElementById('resolved-incidents').textContent =
+        Number(incidents.resolved_incidents || 0);
+
+        const table = document.getElementById('metrics-table');
+        table.innerHTML = '';
+
+        data.services.forEach(service => {
+    const id = service.service_id;
+
+    const uptimeItem = data.uptime.find(
+        item => item.service_id === id
+    );
+
+    if (!uptimeItem) return;
+
+    const serviceName = service.service_name || 'Unknown';
+
+    const healthStatus = service.is_available === null
+        ? 'UNKNOWN'
+        : Number(service.is_available) === 1
+            ? 'UP'
+            : 'DOWN';
+
+    const row = `
+        <tr>
+            <td>${id}</td>
+            <td>${serviceName}</td>
+            <td>${healthStatus}</td>
+            <td>${Number(uptimeItem.uptime_percentage).toFixed(2)}%</td>
+            <td>${p95Map[id] !== undefined ? p95Map[id].toFixed(2) + ' ms' : 'N/A'}</td>
+            <td>${mttrMap[id] !== undefined ? mttrMap[id].toFixed(2) + ' min' : 'N/A'}</td>
+        </tr>
+    `;
+
+    table.innerHTML += row;
+});
+
+    } catch (error) {
+        console.error('Dashboard loading error:', error);
+    }
+}
+
+loadDashboard();
+
+setInterval(loadDashboard, 60000);
+</script>
+
+<body>
+
+    <h1>ServiceWatch Dashboard</h1>
+    <p>Service Monitoring and Incident Management</p>
+
+    <div class="container">
+
+        <div class="card">
+            <h3>Total Services</h3>
+            <p id="total-services">0</p>
+        </div>
+
+        <div class="card">
+            <h3>Average Uptime</h3>
+            <p id="average-uptime">0%</p>
+        </div>
+
+        <div class="card">
+            <h3>Average P95</h3>
+            <p id="average-p95">0 ms</p>
+        </div>
+
+        <div class="card">
+            <h3>Average MTTR</h3>
+            <p id="average-mttr">0 min</p>
+        </div>
+
+        <div class="card">
+            <h3>Total Incidents</h3>
+            <p id="total-incidents">0</p>
+        </div>
+        
+        <div class="card">
+            <h3>Open Incidents</h3>
+            <p id="open-incidents">0</p>
+        </div>
+        
+        <div class="card">
+            <h3>Resolved Incidents</h3>
+            <p id="resolved-incidents">0</p>
+        </div>
+
+    </div>
+
+    <h2>Service Metrics</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Service ID</th>
+                <th>Service Name</th>
+                <th>Health Status</th>
+                <th>Uptime</th>
+                <th>P95 Response Time</th>
+                <th>MTTR</th>
+            </tr>
+        </thead>
+
+        <tbody id="metrics-table">
+        </tbody>
+    </table>
+
+</body>
+</html>
